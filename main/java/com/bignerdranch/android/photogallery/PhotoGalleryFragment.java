@@ -34,6 +34,12 @@ public class PhotoGalleryFragment extends Fragment {
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
 
+    private int mCurrentPage = 1;
+    private int mFetchedPage = 0;
+    private int mCurrentPosition = 0;
+
+    private GridLayoutManager manager;
+
 
     public static PhotoGalleryFragment newInstance() {
         return new PhotoGalleryFragment();
@@ -43,7 +49,7 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        new FetchItemsTask().execute(mCurrentPage);
         Handler responseHandler = new Handler();
         mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
         mThumbnailDownloader.setThumbnailDownloadListener(
@@ -67,9 +73,49 @@ public class PhotoGalleryFragment extends Fragment {
         mPhotoRecyclerView = (RecyclerView) v
                 .findViewById(R.id.fragment_photo_gallery_recycler_view);
         mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+        manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
 
-        GridLayoutManager manager = new GridLayoutManager(getActivity(),10);
-        mPhotoRecyclerView.setLayoutManager(manager);
+        //GridLayoutManager manager = new GridLayoutManager(getActivity(),10);
+        //mPhotoRecyclerView.setLayoutManager(manager);
+       // PhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
+        mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public  void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                //int firstpos = manager
+                switch (newState){
+                    case RecyclerView.SCROLL_STATE_IDLE:
+                        Log.i(TAG, String.valueOf(mCurrentPage));
+
+                        PhotoAdapter photoAdapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
+                        int start = manager.findLastVisibleItemPosition() +1;
+                        int end1 = Math.min(start+10,photoAdapter.getItemCount()-1);
+                        for (int i = start; i<end1; i++){
+                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
+                        }
+
+
+                        start = manager.findLastVisibleItemPosition() - 1;
+                        int end2 = Math.max(start-10,0);
+                        for (int i = start; i>end2; i--){
+                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
+                        }
+
+                        break;
+                    case RecyclerView.SCROLL_STATE_DRAGGING:
+                        mThumbnailDownloader.clearpreload();
+                        break;
+
+                }
+
+                updatepage();
+
+            }
+
+        });
 
         setupAdapter();
 
@@ -89,26 +135,38 @@ public class PhotoGalleryFragment extends Fragment {
 
     private void setupAdapter() {
         if (isAdded()) {
-            //mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
-            //mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-           /* @Override
+            if (mItems!= null){
+                mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
+
+            }else {
+                mPhotoRecyclerView.setAdapter(null);
+
+            }
+            mPhotoRecyclerView.scrollToPosition(mCurrentPosition);
+           /* mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+           @Override
             public  void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                 switch (newState){
                     case RecyclerView.SCROLL_STATE_IDLE:
-                        GridLayoutManager manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+                         manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
 
                         PhotoAdapter photoAdapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
                         int start = manager.findLastVisibleItemPosition() +1;
-                        int end1 = Math.min(start+ images,photoAdapter.getItemCount());
+                        int end1 = Math.min(start+10,photoAdapter.getItemCount()-1);
                         for (int i = start; i<end1; i++){
                             mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
                         }
 
 
-                        int end2= Math.min(start - images,photoAdapter.getItemCount());
+                         start = manager.findLastVisibleItemPosition() - 1;
+                        int end2 = Math.max(start-10,0);
                         for (int i = start; i>end2; i--){
-                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
-                        }
+                        mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                        Log.i(TAG, String.valueOf(i));
+
+                    }
 
                         break;
                     case RecyclerView.SCROLL_STATE_DRAGGING:
@@ -116,12 +174,22 @@ public class PhotoGalleryFragment extends Fragment {
                         break;
 
                 }
+               //updatepage();
+
             }
 
-            });
-        }*/
+            });*/
+        }
     }
+    private void updatepage(){
+        if(manager.findLastVisibleItemPosition()== (manager.getItemCount()-1)&& mCurrentPage == mFetchedPage){
+            mCurrentPosition = manager.findFirstVisibleItemPosition()+100;
+            mCurrentPage++;
+            Log.i(TAG, String.valueOf(mCurrentPage));
 
+            new FetchItemsTask().execute(mCurrentPage);
+        }
+    }
     private class PhotoHolder extends RecyclerView.ViewHolder {
         private  ImageView mItemImageView;
 
@@ -172,16 +240,25 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    private class FetchItemsTask extends AsyncTask<Void,Void,List<GalleryItem>> {
+    private class FetchItemsTask extends AsyncTask<Integer,Void,List<GalleryItem>> {
 
         @Override
-        protected List<GalleryItem> doInBackground(Void... params) {
+        protected List<GalleryItem> doInBackground(Integer... params) {
             return new FlickrFetchr().fetchItems();
         }
 
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
-            mItems = items;
+
+            if (mItems == null){
+                mItems = items;
+            }else{
+                if(items != null){
+                    mItems.addAll(items);
+                }
+            }
+            mFetchedPage++;
+
             setupAdapter();
         }
 
