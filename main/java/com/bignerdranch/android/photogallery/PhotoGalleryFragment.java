@@ -28,11 +28,14 @@ import java.util.List;
 public class PhotoGalleryFragment extends Fragment {
 
     private static final String TAG = "PhotoGalleryFragment";
-    private static final int images = 10;
 
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
+
+
+
+    private GridLayoutManager manager;
 
 
     public static PhotoGalleryFragment newInstance() {
@@ -67,9 +70,49 @@ public class PhotoGalleryFragment extends Fragment {
         mPhotoRecyclerView = (RecyclerView) v
                 .findViewById(R.id.fragment_photo_gallery_recycler_view);
         mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+        manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
 
-        GridLayoutManager manager = new GridLayoutManager(getActivity(),10);
-        mPhotoRecyclerView.setLayoutManager(manager);
+        //GridLayoutManager manager = new GridLayoutManager(getActivity(),10);
+        //mPhotoRecyclerView.setLayoutManager(manager);
+       // PhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
+        mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public  void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+
+                switch (newState){
+                    case RecyclerView.SCROLL_STATE_IDLE:
+
+
+                        PhotoAdapter photoAdapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
+                        int start = manager.findLastVisibleItemPosition() +1;
+                        int end1 = Math.min(start+10,photoAdapter.getItemCount()-1);
+                        for (int i = start; i<end1; i++){
+                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
+                        }
+
+
+                        start = manager.findLastVisibleItemPosition() - 1;
+                        int end2 = Math.max(start-10,0);
+                        for (int i = start; i>end2; i--){
+                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
+                        }
+
+                        break;
+                    case RecyclerView.SCROLL_STATE_DRAGGING:
+                        mThumbnailDownloader.clearpreload();
+                        break;
+
+                }
+
+
+
+            }
+
+        });
 
         setupAdapter();
 
@@ -89,26 +132,38 @@ public class PhotoGalleryFragment extends Fragment {
 
     private void setupAdapter() {
         if (isAdded()) {
-            //mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
-            //mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-           /* @Override
+            if (mItems!= null){
+                mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
+
+            }else {
+                mPhotoRecyclerView.setAdapter(null);
+
+            }
+
+           /* mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+           @Override
             public  void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                 switch (newState){
                     case RecyclerView.SCROLL_STATE_IDLE:
-                        GridLayoutManager manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+                         manager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
 
                         PhotoAdapter photoAdapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
                         int start = manager.findLastVisibleItemPosition() +1;
-                        int end1 = Math.min(start+ images,photoAdapter.getItemCount());
+                        int end1 = Math.min(start+10,photoAdapter.getItemCount()-1);
                         for (int i = start; i<end1; i++){
                             mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                            Log.i(TAG, String.valueOf(i));
+
                         }
 
 
-                        int end2= Math.min(start - images,photoAdapter.getItemCount());
+                         start = manager.findLastVisibleItemPosition() - 1;
+                        int end2 = Math.max(start-10,0);
                         for (int i = start; i>end2; i--){
-                            mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
-                        }
+                        mThumbnailDownloader.preloadimage(photoAdapter.mGalleryItems.get(i).getUrl());
+                        Log.i(TAG, String.valueOf(i));
+
+                    }
 
                         break;
                     case RecyclerView.SCROLL_STATE_DRAGGING:
@@ -116,10 +171,12 @@ public class PhotoGalleryFragment extends Fragment {
                         break;
 
                 }
+               //updatepage();
+
             }
 
-            });
-        }*/
+            });*/
+        }
     }
 
     private class PhotoHolder extends RecyclerView.ViewHolder {
@@ -172,16 +229,25 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    private class FetchItemsTask extends AsyncTask<Void,Void,List<GalleryItem>> {
+    private class FetchItemsTask extends AsyncTask<Integer,Void,List<GalleryItem>> {
 
         @Override
-        protected List<GalleryItem> doInBackground(Void... params) {
+        protected List<GalleryItem> doInBackground(Integer... params) {
             return new FlickrFetchr().fetchItems();
         }
 
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
-            mItems = items;
+
+            if (mItems == null){
+                mItems = items;
+            }else{
+                if(items != null){
+                    mItems.addAll(items);
+                }
+            }
+
+
             setupAdapter();
         }
 

@@ -67,7 +67,10 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         }
     }
     public void preloadimage(String url){
+
         mRequestHandler.obtainMessage(1,url).sendToTarget();
+        Log.i(TAG, "vvvvvvvvvvvvvvvvvvvvvv");
+
     }
     public void clearQueue() {
         mRequestHandler.removeMessages(MESSAGE_DOWNLOAD);
@@ -78,13 +81,13 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         mRequestHandler.removeMessages(1);
     }
     private void handleRequest(final T target) {
-        try {
+
             final String url = mRequestMap.get(target);
             if (url == null) {
                 return;
             }
-            byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
-            final Bitmap bitmap = BitmapFactory.decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
+
+            final Bitmap bitmap = downloadimage(url);
             Log.i(TAG, "Bitmap created");
             mResponseHandler.post(new Runnable() {
                 public void run() {
@@ -95,9 +98,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                     mThumbnailDownloadListener.onThumbnailDownloaded(target, bitmap);
                 }
             });
-        } catch (IOException ioe) {
-            Log.e(TAG, "Error downloading image", ioe);
-        }
+
     }
     private Bitmap downloadimage (String url){
         if (url == null) {
